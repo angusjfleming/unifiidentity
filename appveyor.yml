@@ -31,6 +31,25 @@ build_script:
   - ps: |
       $ErrorActionPreference = 'Stop'
 
+      function Invoke-Git {
+        param(
+          [Parameter(Mandatory=$true)][string]$Args,
+          [switch]$Quiet
+        )
+        # Run git with stderr merged into stdout; do not let PS stop on stderr text
+        $prevEap = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          $output = & git $Args 2>&1
+          if (-not $Quiet) { $output | ForEach-Object { Write-Host $_ } }
+          if ($LASTEXITCODE -ne 0) {
+            throw "git $Args failed with exit code $LASTEXITCODE"
+          }
+        } finally {
+          $ErrorActionPreference = $prevEap
+        }
+      }
+
       # Validate required environment variables
       $requiredVars = @('PS_SCRIPT_PATH')
       foreach ($var in $requiredVars) {
@@ -49,22 +68,42 @@ build_script:
           throw "Helper script not found: $helperRel (commit build\Update-ChocoChecksums.ps1 to your repo)."
       }
 
-      # DEBUG: Print helper content
+      # -------------------------------
+      # DEBUG: Print helper content to verify it's the corrected file
+      # -------------------------------
       Write-Host '=== DEBUG: HEAD of build\Update-ChocoChecksums.ps1 ==='
       Get-Content $helper -First 40 | ForEach-Object { Write-Host $_ }
+      Write-Host '=== DEBUG: Lines 220..245 of build\Update-ChocoChecksums.ps1 ==='
+      $all = Get-Content $helper
+      $start = [Math]::Max(0, [Math]::Min(220, $all.Length - 1))
+      $end   = [Math]::Max($start, [Math]::Min(245, $all.Length - 1))
+      for ($i = $start; $i -le $end; $i++) { Write-Host ("{0:D4}: {1}" -f $i, $all[$i]) }
+      # -------------------------------
 
       # Run helper to update checksums and nuspec version
       $algo = if ($env:HASH_ALGO) { $env:HASH_ALGO } else { 'sha256' }
       .\build\Update-ChocoChecksums.ps1 -ScriptPath $env:PS_SCRIPT_PATH -Url $env:URL_X86 -Url64 $env:URL_X64 -Algorithm $algo
 
-      # --- SAFEGUARD: prevent newline being added to chocolateyinstall.ps1 ---
+      # --- SAFEGUARD: prevent trailing newline being added to tools\chocolateyinstall.ps1 (encoding-safe) ---
       $chocoFileRel = if ($env:CHOCO_FILE_PATH) { $env:CHOCO_FILE_PATH } else { 'tools\chocolateyinstall.ps1' }
       $chocoFile = Join-Path $env:APPVEYOR_BUILD_FOLDER $chocoFileRel
       if (Test-Path $chocoFile) {
-          # Read raw content and rewrite without appending newline
-          $raw = Get-Content -LiteralPath $chocoFile -Raw
-          Set-Content -LiteralPath $chocoFile -Value $raw -NoNewline
-          Write-Host "Ensured no trailing newline in $chocoFileRel"
+        # Read raw bytes to preserve exact encoding/BOM; trim only trailing LF or CRLF if present.
+        [byte[]]$bytes = [System.IO.File]::ReadAllBytes($chocoFile)
+
+        if ($bytes.Length -ge 2 -and $bytes[$bytes.Length-2] -eq 13 -and $bytes[$bytes.Length-1] -eq 10) {
+          # Trim CRLF
+          $bytes = $bytes[0..($bytes.Length-3)]
+          Write-Host "Trimmed trailing CRLF from $chocoFileRel"
+        } elseif ($bytes.Length -ge 1 -and $bytes[$bytes.Length-1] -eq 10) {
+          # Trim LF
+          $bytes = $bytes[0..($bytes.Length-2)]
+          Write-Host "Trimmed trailing LF from $chocoFileRel"
+        } else {
+          Write-Host "No trailing newline to trim in $chocoFileRel"
+        }
+
+        [System.IO.File]::WriteAllBytes($chocoFile, $bytes)
       }
 
       # Commit and push changes if REPO_TOKEN is set
@@ -80,58 +119,61 @@ build_script:
           try {
               $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:REPO_TOKEN"))
               git config --global http.https://github.com/.extraheader ("Authorization: Basic $basic")
-              if (git config --global --get http.https://github.com/.extraheader) { $extraHeaderSet = $true }
+              $chk = git config --global --get http.https://github.com/.extraheader 2>&1
+              if ($chk) { $extraHeaderSet = $true }
           } catch { }
 
-          $origin = (git remote get-url origin)
+          # Normalize origin URL
+          $origin = (git remote get-url origin 2>&1)
           if ($origin -notmatch '^https://') {
               if ($env:APPVEYOR_REPO_PROVIDER -eq 'gitHub' -and $env:APPVEYOR_REPO_NAME) {
                   $httpsRemote = "https://github.com/$($env:APPVEYOR_REPO_NAME).git"
-                  git remote set-url origin $httpsRemote 2>$null
+                  Invoke-Git "remote set-url origin $httpsRemote" -Quiet
               }
           }
           if (-not $extraHeaderSet) {
               if ($env:APPVEYOR_REPO_PROVIDER -eq 'gitHub' -and $env:APPVEYOR_REPO_NAME) {
                   $originTokenized = "https://x-access-token:$($env:REPO_TOKEN)@github.com/$($env:APPVEYOR_REPO_NAME).git"
-                  git remote set-url origin $originTokenized 2>$null
+                  Invoke-Git "remote set-url origin $originTokenized" -Quiet
               }
           }
 
           # Handle shallow clone
           $isShallow = $false
           try {
-              $shallowOut = git rev-parse --is-shallow-repository 2>$null
+              $shallowOut = (& git rev-parse --is-shallow-repository 2>&1) -join "`n"
               if ($shallowOut -match 'true') { $isShallow = $true }
           } catch { }
           if ($isShallow) {
-              git fetch --unshallow 2>$null
+              Invoke-Git "fetch --unshallow" -Quiet
           }
 
           # Fetch and checkout branch
-          git fetch origin $branch 2>$null
-          $localBranches = git branch --list $branch
+          Invoke-Git "fetch origin $branch" -Quiet
+          $localBranches = (& git branch --list $branch 2>&1) -join "`n"
           if (-not $localBranches) {
-              git checkout -b $branch "origin/$branch" 2>$null
+              Invoke-Git "checkout -b $branch origin/$branch" -Quiet
           } else {
-              git checkout --quiet $branch 2>$null
-              git reset --soft "origin/$branch" 2>$null
+              Invoke-Git "checkout --quiet $branch" -Quiet
+              Invoke-Git "reset --soft origin/$branch" -Quiet
           }
 
           # Stage files
-          git add -f -- "$env:PS_SCRIPT_PATH" 2>$null
+          $gitPath = $env:PS_SCRIPT_PATH -replace '\\','/'
+          Invoke-Git "add -f -- `"$gitPath`"" -Quiet
           if (Test-Path "unifiidentity.nuspec") {
-              git add -f -- "unifiidentity.nuspec" 2>$null
+              Invoke-Git "add -f -- `"unifiidentity.nuspec`"" -Quiet
           }
           if (Test-Path $chocoFile) {
-              git add -f -- "$chocoFileRel" 2>$null
+              Invoke-Git "add -f -- `"$chocoFileRel`"" -Quiet
           }
 
           # Commit and push if staged
-          $staged = git diff --cached --name-only
+          $staged = (& git diff --cached --name-only 2>&1) -join "`n"
           if ($staged) {
               $commitMsg = if ($env:SKIP_CI_ON_PUSH -eq 'true') { "Update Chocolatey checksums and nuspec version [ci skip]" } else { "Update Chocolatey checksums and nuspec version" }
-              git commit -m $commitMsg 2>$null
-              git push origin HEAD:$branch 2>$null
+              Invoke-Git "commit -m `"$commitMsg`""
+              Invoke-Git "push origin HEAD:$branch" -Quiet
           } else {
               Write-Host "No changes detected to commit."
           }
