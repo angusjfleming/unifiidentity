@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>unifi-identity</id>
+    <version>0.1</version>
+    <packageSourceUrl>https://github.com/angusjfleming/unifiidentity</packageSourceUrl>
+    <owners>Angus Fleming</owners>
+    <title>Unifi Identity Endpoint</title>
+    <authors>Unifi</authors>
+
+    <projectUrl>https://help.ui.com/hc/en-us/articles/16936895868823-UniFi-Identity-Endpoint-Overview</projectUrl>
+    <iconUrl>https://ui.com/microsite/static/Identity-CWNAfoR2.svg</iconUrl>
+    <copyright>2026 Unifi</copyright>
+    <tags>unifiidentity SPACE_SEPARATED</tags>
+    <summary>Chocolatey package for deploying Unifi Identity Endpoint</summary>
+    <description>Unifi Identity Endpoint Client, deployed directly from Unifi MSI distribution website </description>
+    <!-- =============================== -->
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
