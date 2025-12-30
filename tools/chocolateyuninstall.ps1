@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
-  softwareName  = 'unifiidentity*'
+  softwareName  = 'Identity*'
   fileType      = 'MSI'
   silentArgs    = "/qn /norestart"
   validExitCodes= @(0, 3010, 1605, 1614, 1641)

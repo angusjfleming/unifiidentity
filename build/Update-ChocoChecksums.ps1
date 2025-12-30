@@ -1,4 +1,4 @@
-
+﻿
 <#
 .SYNOPSIS
   Download MSI(s), compute checksum(s), update Chocolatey script checksums (replace-only),
@@ -185,7 +185,7 @@ function Replace-LineValue {
   }
 
   # Replace-only: do NOT append if not found
-  Write-Host "Line '$Name' not found—no changes made to $Name."
+  Write-Host "Line '$Name' not foundâ€”no changes made to $Name."
   return $InContent
 }  # closing brace present
 
@@ -249,3 +249,4 @@ if ($msiForVersion -and (Test-Path $NuspecPath)) {
 } else {
   Write-Host "Skipping nuspec update (no MSI or nuspec missing)."
 }
+
