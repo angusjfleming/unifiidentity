@@ -31,19 +31,23 @@ build_script:
   - ps: |
       $ErrorActionPreference = 'Stop'
 
+      # Robust git invoker: passes args properly, merges stderr, fails only on non-zero exit
       function Invoke-Git {
+        [CmdletBinding()]
         param(
-          [Parameter(Mandatory=$true)][string]$Args,
+          [Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)]
+          [string[]]$Arguments,
           [switch]$Quiet
         )
-        # Run git with stderr merged into stdout; do not let PS stop on stderr text
         $prevEap = $ErrorActionPreference
         try {
           $ErrorActionPreference = 'Continue'
-          $output = & git $Args 2>&1
+          $output = & git @Arguments 2>&1
           if (-not $Quiet) { $output | ForEach-Object { Write-Host $_ } }
-          if ($LASTEXITCODE -ne 0) {
-            throw "git $Args failed with exit code $LASTEXITCODE"
+          $exit = $LASTEXITCODE
+          if ($exit -ne 0) {
+            $msg = ($output | Out-String).Trim()
+            throw "git $($Arguments -join ' ') failed with exit code $exit`n$msg"
           }
         } finally {
           $ErrorActionPreference = $prevEap
@@ -119,22 +123,22 @@ build_script:
           try {
               $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:REPO_TOKEN"))
               git config --global http.https://github.com/.extraheader ("Authorization: Basic $basic")
-              $chk = git config --global --get http.https://github.com/.extraheader 2>&1
+              $chk = (& git config --global --get http.https://github.com/.extraheader 2>&1) -join "`n"
               if ($chk) { $extraHeaderSet = $true }
           } catch { }
 
           # Normalize origin URL
-          $origin = (git remote get-url origin 2>&1)
+          $origin = ((& git remote get-url origin 2>&1) -join "`n").Trim()
           if ($origin -notmatch '^https://') {
               if ($env:APPVEYOR_REPO_PROVIDER -eq 'gitHub' -and $env:APPVEYOR_REPO_NAME) {
                   $httpsRemote = "https://github.com/$($env:APPVEYOR_REPO_NAME).git"
-                  Invoke-Git "remote set-url origin $httpsRemote" -Quiet
+                  Invoke-Git remote set-url origin $httpsRemote -Quiet
               }
           }
           if (-not $extraHeaderSet) {
               if ($env:APPVEYOR_REPO_PROVIDER -eq 'gitHub' -and $env:APPVEYOR_REPO_NAME) {
                   $originTokenized = "https://x-access-token:$($env:REPO_TOKEN)@github.com/$($env:APPVEYOR_REPO_NAME).git"
-                  Invoke-Git "remote set-url origin $originTokenized" -Quiet
+                  Invoke-Git remote set-url origin $originTokenized -Quiet
               }
           }
 
@@ -145,35 +149,35 @@ build_script:
               if ($shallowOut -match 'true') { $isShallow = $true }
           } catch { }
           if ($isShallow) {
-              Invoke-Git "fetch --unshallow" -Quiet
+              Invoke-Git fetch --unshallow -Quiet
           }
 
-          # Fetch and checkout branch
-          Invoke-Git "fetch origin $branch" -Quiet
+          # Fetch and checkout branch (arguments passed as array)
+          Invoke-Git fetch origin $branch -Quiet
           $localBranches = (& git branch --list $branch 2>&1) -join "`n"
           if (-not $localBranches) {
-              Invoke-Git "checkout -b $branch origin/$branch" -Quiet
+              Invoke-Git checkout -b $branch "origin/$branch" -Quiet
           } else {
-              Invoke-Git "checkout --quiet $branch" -Quiet
-              Invoke-Git "reset --soft origin/$branch" -Quiet
+              Invoke-Git checkout --quiet $branch -Quiet
+              Invoke-Git reset --soft "origin/$branch" -Quiet
           }
 
           # Stage files
           $gitPath = $env:PS_SCRIPT_PATH -replace '\\','/'
-          Invoke-Git "add -f -- `"$gitPath`"" -Quiet
+          Invoke-Git add -f -- $gitPath -Quiet
           if (Test-Path "unifiidentity.nuspec") {
-              Invoke-Git "add -f -- `"unifiidentity.nuspec`"" -Quiet
+              Invoke-Git add -f -- "unifiidentity.nuspec" -Quiet
           }
           if (Test-Path $chocoFile) {
-              Invoke-Git "add -f -- `"$chocoFileRel`"" -Quiet
+              Invoke-Git add -f -- $chocoFileRel -Quiet
           }
 
           # Commit and push if staged
           $staged = (& git diff --cached --name-only 2>&1) -join "`n"
           if ($staged) {
               $commitMsg = if ($env:SKIP_CI_ON_PUSH -eq 'true') { "Update Chocolatey checksums and nuspec version [ci skip]" } else { "Update Chocolatey checksums and nuspec version" }
-              Invoke-Git "commit -m `"$commitMsg`""
-              Invoke-Git "push origin HEAD:$branch" -Quiet
+              Invoke-Git commit -m $commitMsg
+              Invoke-Git push origin "HEAD:$branch" -Quiet
           } else {
               Write-Host "No changes detected to commit."
           }
