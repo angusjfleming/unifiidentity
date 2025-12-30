@@ -185,9 +185,9 @@ function Replace-LineValue {
   }
 
   # Replace-only: do NOT append if not found
-  Write-Host "Line '$Name' not foundâ€”no changes made to $Name."
+  Write-Host "Line '$Name' not found - no changes made to $Name."
   return $InContent
-}  # closing brace present
+}
 
 # Replace-only updates
 if ($null -ne $checksum)   { $content = Replace-LineValue -InContent $content -Pattern $patternChecksum   -Name 'checksum'   -NewValue $checksum }
