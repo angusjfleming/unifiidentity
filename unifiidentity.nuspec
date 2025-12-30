@@ -3,7 +3,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>unifi-identity</id>
-    <version> 3.5.2.218</version>
+    <version>0.1</version>
     <packageSourceUrl>https://github.com/angusjfleming/unifiidentity</packageSourceUrl>
     <owners>Angus Fleming</owners>
     <title>Unifi Identity Endpoint</title>
