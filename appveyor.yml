@@ -1,4 +1,3 @@
-
 image: Visual Studio 2022
 
 clone_depth: 50
@@ -7,9 +6,10 @@ environment:
   DEFAULT_BRANCH: main
   SKIP_CI_ON_PUSH: 'true'     # set 'false' if you want pushes to retrigger AppVeyor
   GIT_DEBUG_HTTP: 'false'
+  NO_TRAILING_NEWLINE: 'true' # instruct helper not to add an extra trailing newline
 
 skip_commits:
-  message: /(\[ci skip\]|\[skip ci\])/i
+  message: /(\\[ci skip\\]|\\[skip ci\\])/i
 
 init:
   - ps: |
@@ -62,7 +62,13 @@ build_script:
 
       # Run helper to update checksums and nuspec version
       $algo = if ($env:HASH_ALGO) { $env:HASH_ALGO } else { 'sha256' }
-      .\build\Update-ChocoChecksums.ps1 -ScriptPath $env:PS_SCRIPT_PATH -Url $env:URL_X86 -Url64 $env:URL_X64 -Algorithm $algo
+      $noNl = $env:NO_TRAILING_NEWLINE -eq 'true'
+      .\build\Update-ChocoChecksums.ps1 `
+        -ScriptPath $env:PS_SCRIPT_PATH `
+        -Url $env:URL_X86 `
+        -Url64 $env:URL_X64 `
+        -Algorithm $algo `
+        -NoTrailingNewline:$noNl
 
       # Commit and push changes if REPO_TOKEN is set
       $repoTokenPresent = ($env:REPO_TOKEN -and $env:REPO_TOKEN.Trim().Length -gt 0)
