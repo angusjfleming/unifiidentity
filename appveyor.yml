@@ -1,3 +1,4 @@
+
 image: Visual Studio 2022
 
 clone_depth: 50
@@ -6,10 +7,10 @@ environment:
   DEFAULT_BRANCH: main
   SKIP_CI_ON_PUSH: 'true'     # set 'false' if you want pushes to retrigger AppVeyor
   GIT_DEBUG_HTTP: 'false'
-  NO_TRAILING_NEWLINE: 'true' # instruct helper not to add an extra trailing newline
+  CHOCO_FILE_PATH: tools\chocolateyinstall.ps1
 
 skip_commits:
-  message: /(\\[ci skip\\]|\\[skip ci\\])/i
+  message: /(\[ci skip\]|\[skip ci\])/i
 
 init:
   - ps: |
@@ -48,27 +49,23 @@ build_script:
           throw "Helper script not found: $helperRel (commit build\Update-ChocoChecksums.ps1 to your repo)."
       }
 
-      # -------------------------------
-      # DEBUG: Print helper content to verify it's the corrected file
-      # -------------------------------
+      # DEBUG: Print helper content
       Write-Host '=== DEBUG: HEAD of build\Update-ChocoChecksums.ps1 ==='
       Get-Content $helper -First 40 | ForEach-Object { Write-Host $_ }
-      Write-Host '=== DEBUG: Lines 220..245 of build\Update-ChocoChecksums.ps1 ==='
-      $all = Get-Content $helper
-      $start = [Math]::Max(0, [Math]::Min(220, $all.Length - 1))
-      $end   = [Math]::Max($start, [Math]::Min(245, $all.Length - 1))
-      for ($i = $start; $i -le $end; $i++) { Write-Host ("{0:D4}: {1}" -f $i, $all[$i]) }
-      # -------------------------------
 
       # Run helper to update checksums and nuspec version
       $algo = if ($env:HASH_ALGO) { $env:HASH_ALGO } else { 'sha256' }
-      $noNl = $env:NO_TRAILING_NEWLINE -eq 'true'
-      .\build\Update-ChocoChecksums.ps1 `
-        -ScriptPath $env:PS_SCRIPT_PATH `
-        -Url $env:URL_X86 `
-        -Url64 $env:URL_X64 `
-        -Algorithm $algo `
-        -NoTrailingNewline:$noNl
+      .\build\Update-ChocoChecksums.ps1 -ScriptPath $env:PS_SCRIPT_PATH -Url $env:URL_X86 -Url64 $env:URL_X64 -Algorithm $algo
+
+      # --- SAFEGUARD: prevent newline being added to chocolateyinstall.ps1 ---
+      $chocoFileRel = if ($env:CHOCO_FILE_PATH) { $env:CHOCO_FILE_PATH } else { 'tools\chocolateyinstall.ps1' }
+      $chocoFile = Join-Path $env:APPVEYOR_BUILD_FOLDER $chocoFileRel
+      if (Test-Path $chocoFile) {
+          # Read raw content and rewrite without appending newline
+          $raw = Get-Content -LiteralPath $chocoFile -Raw
+          Set-Content -LiteralPath $chocoFile -Value $raw -NoNewline
+          Write-Host "Ensured no trailing newline in $chocoFileRel"
+      }
 
       # Commit and push changes if REPO_TOKEN is set
       $repoTokenPresent = ($env:REPO_TOKEN -and $env:REPO_TOKEN.Trim().Length -gt 0)
@@ -107,16 +104,11 @@ build_script:
               if ($shallowOut -match 'true') { $isShallow = $true }
           } catch { }
           if ($isShallow) {
-              $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
               git fetch --unshallow 2>$null
-              $ErrorActionPreference = $prev
           }
 
           # Fetch and checkout branch
-          $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
           git fetch origin $branch 2>$null
-          $ErrorActionPreference = $prev
-
           $localBranches = git branch --list $branch
           if (-not $localBranches) {
               git checkout -b $branch "origin/$branch" 2>$null
@@ -125,11 +117,13 @@ build_script:
               git reset --soft "origin/$branch" 2>$null
           }
 
-          # Explicitly stage both files
-          $gitPath = $env:PS_SCRIPT_PATH -replace '\\','/'
-          git add -f -- "$gitPath" 2>$null
+          # Stage files
+          git add -f -- "$env:PS_SCRIPT_PATH" 2>$null
           if (Test-Path "unifiidentity.nuspec") {
               git add -f -- "unifiidentity.nuspec" 2>$null
+          }
+          if (Test-Path $chocoFile) {
+              git add -f -- "$chocoFileRel" 2>$null
           }
 
           # Commit and push if staged
@@ -137,12 +131,7 @@ build_script:
           if ($staged) {
               $commitMsg = if ($env:SKIP_CI_ON_PUSH -eq 'true') { "Update Chocolatey checksums and nuspec version [ci skip]" } else { "Update Chocolatey checksums and nuspec version" }
               git commit -m $commitMsg 2>$null
-
-              $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-              & git push origin HEAD:$branch 2>$null
-              $code = $LASTEXITCODE
-              $ErrorActionPreference = $prev
-              if ($code -ne 0) { throw "git push failed with exit code $code" }
+              git push origin HEAD:$branch 2>$null
           } else {
               Write-Host "No changes detected to commit."
           }
