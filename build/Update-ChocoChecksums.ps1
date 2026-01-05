@@ -18,9 +18,6 @@
 .PARAMETER Url
   Download URL for x86 MSI (optional if Url64 is provided).
 
-.PARAMETER Url64
-  Download URL for x64 MSI (optional if Url is provided).
-
 .PARAMETER Algorithm
   Hash algorithm for checksums: sha256 (default), sha1, sha384, sha512, md5.
 

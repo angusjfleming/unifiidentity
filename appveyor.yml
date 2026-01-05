@@ -61,8 +61,8 @@ build_script:
               throw "Missing required environment variable: $var"
           }
       }
-      if (-not $env:URL_X86 -and -not $env:URL_X64) {
-          throw "Provide at least one of URL_X86 or URL_X64 in AppVeyor UI."
+      if (-not $env:URL_X86) {
+          throw "Provide the URL_X86 env in AppVeyor UI."
       }
 
       # Ensure helper script exists
@@ -86,7 +86,7 @@ build_script:
 
       # Run helper to update checksums and nuspec version
       $algo = if ($env:HASH_ALGO) { $env:HASH_ALGO } else { 'sha256' }
-      .\build\Update-ChocoChecksums.ps1 -ScriptPath $env:PS_SCRIPT_PATH -Url $env:URL_X86 -Url64 $env:URL_X64 -Algorithm $algo
+      .\build\Update-ChocoChecksums.ps1 -ScriptPath $env:PS_SCRIPT_PATH -Url $env:URL_X86 -Algorithm $algo
 
       # --- SAFEGUARD: prevent trailing newline being added to tools\chocolateyinstall.ps1 (encoding-safe) ---
       $chocoFileRel = if ($env:CHOCO_FILE_PATH) { $env:CHOCO_FILE_PATH } else { 'tools\chocolateyinstall.ps1' }
