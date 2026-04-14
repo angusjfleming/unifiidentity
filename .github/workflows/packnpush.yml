@@ -23,7 +23,7 @@ jobs:
         # --- START CUSTOMIZATION AREA ---
         # This command builds and packages the contents of the repository root (.).
         # Change this if your source code is in a specific subdirectory.
-        run: choco pack . 
+        run: choco pack unifi-identity.nuspec
         # --- END CUSTOMIZATION AREA ---
 
       # 3. Publish Package using API Key
