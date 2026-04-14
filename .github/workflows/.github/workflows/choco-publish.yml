@@ -1,0 +1,30 @@
+name: Chocolatey Pack & Push
+
+on:
+  release:
+    types: [published]     # Trigger on release creation
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  pack-and-push:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Chocolatey
+        uses: crazy-max/ghaction-chocolatey@v4
+        with:
+          args: --version   # Just to verify
+
+      - name: Pack the package
+        run: choco pack --confirm
+        shell: pwsh
+        working-directory: ./path/to/your/package   # change if needed
+
+      - name: Push to Chocolatey.org
+        run: |
+          choco push *.nupkg --source="'https://push.chocolatey.org/'" --api-key="${{ secrets.CHOCO_API_KEY }}"
+        shell: pwsh
+        working-directory: ./path/to/your/package
