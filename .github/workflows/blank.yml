@@ -1,0 +1,36 @@
+name: Build and Publish Chocolatey Package (API Key)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_publish:
+    runs-on: windows-latest 
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 1. Setup Environment (Install Chocolatey)
+      - name: Install Chocolatey Package Manager
+        run: |
+          powershell -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))"
+
+      # 2. Build Package (*** IMPORTANT: CUSTOMIZE THIS SECTION ***)
+      - name: Build Package
+        # --- START CUSTOMIZATION AREA ---
+        # This command builds and packages the contents of the repository root (.).
+        # Change this if your source code is in a specific subdirectory.
+        run: choco pack . 
+        # --- END CUSTOMIZATION AREA ---
+
+      # 3. Publish Package using API Key
+      - name: Publish to Chocolatey Repository
+        # We use the --api-key flag to authenticate instead of user/pass
+        run: choco push $(ls *.nupkg) --source --api-key ${{ secrets.CHOCO_API_KEY }} --skip-review
+        # The variable $CHOCO_API_KEY is passed securely from the GitHub Secret.
+
+      - name: Success Message
+        run: echo "✅ Successfully built and published package version ${{ github.sha }}."
