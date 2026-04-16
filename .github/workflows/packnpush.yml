@@ -2,8 +2,8 @@ name: Build and Publish Chocolatey Package (API Key)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]   # Change to your branch(es)
+  workflow_dispatch:
 
 jobs:
   build_and_publish:
