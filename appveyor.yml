@@ -9,9 +9,6 @@ environment:
   GIT_DEBUG_HTTP: 'false'
   CHOCO_FILE_PATH: tools\chocolateyinstall.ps1
 
-skip_commits:
-  message: /(\[ci skip\]|\[skip ci\])/i
-
 init:
   - ps: |
       if ($env:GIT_USER)  { git config --global user.name  $env:GIT_USER }
