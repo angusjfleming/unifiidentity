@@ -173,7 +173,7 @@ build_script:
           # Commit and push if staged
           $staged = (& git diff --cached --name-only 2>&1) -join "`n"
           if ($staged) {
-              $commitMsg = if ($env:SKIP_CI_ON_PUSH -eq 'true') { "Update Chocolatey checksums and nuspec version [ci skip]" } else { "Update Chocolatey checksums and nuspec version" }
+              $commitMsg = if ($env:SKIP_CI_ON_PUSH -eq 'true') { "Update Chocolatey checksums and nuspec version [appveyor]" } else { "Update Chocolatey checksums and nuspec version" }
               Invoke-Git -Arguments @("commit","-m",$commitMsg)
               Invoke-Git -Arguments @("push","origin","HEAD:$branch") -Quiet
           } else {
