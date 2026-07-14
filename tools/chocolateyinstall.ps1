@@ -11,7 +11,7 @@ $packageArgs = @{
 
   softwareName  = 'unifiidentity*'
 
-  checksum      = '64B96A8763AE4EAA5D327815FF155FB6E077D6F8C0F27D85A08CF80B39782F0C'
+  checksum      = '5417B178A830B21E23FC96EE73A72A6A070038F56E073ECFDD25B30509B029FA'
   checksumType  = 'sha256'
 
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
