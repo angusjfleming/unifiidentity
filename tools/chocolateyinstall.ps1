@@ -1,7 +1,7 @@
 ﻿
 $ErrorActionPreference = 'Stop'
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url        = 'https://download.uid.ui.com/?app=DESKTOP-IDENTITY-STANDARD-WINDOWS-MSI'
+$url        = 'https://fw-update.ui.com/api/v2/firmware-latest/data?filter=eq~~product~~uid-identity-standard-desktop-app-msi&filter=eq~~platform~~windows&filter=eq~~channel~~release'
 
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
